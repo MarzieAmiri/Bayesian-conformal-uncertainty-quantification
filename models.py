@@ -1,10 +1,6 @@
 # ============================================================================
 # Hierarchical Conformal Prediction Models
 # ============================================================================
-# Paper: "A hierarchical conformal framework for uncertainty-aware 
-#         length of stay prediction in multi-hospital settings"
-# Scientific Reports, 2026
-# ============================================================================
 
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
