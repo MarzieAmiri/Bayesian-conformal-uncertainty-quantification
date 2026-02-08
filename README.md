@@ -1,4 +1,4 @@
-# Hierarchical Conformal Prediction for Hospital Length of Stay
+# Bayesian-Conformal Uncertainty Quantification for Hierarchical Data
 
 Code for our paper in *Scientific Reports* (Nature, 2026).
 
@@ -7,33 +7,24 @@ Code for our paper in *Scientific Reports* (Nature, 2026).
 Predicting hospital length of stay is useful, but predictions alone aren't enough, clinicians need to know *how confident* those predictions are. The problem: existing methods either give you reliable coverage guarantees (conformal prediction) or adaptive uncertainty (Bayesian), but not both.
 
 We built a hybrid framework that combines both:
-- **Conformal prediction** gives you guaranteed 95% coverage (your true value falls in the interval 95% of the time)
+- **Conformal prediction** guarantees overall 95% coverage
 - **Bayesian uncertainty** lets intervals adapt — narrower when confident, wider when uncertain
 
-The result: 21% narrower intervals for low-uncertainty cases, 6% wider for high-uncertainty cases, while maintaining overall 95% coverage
-## The Key Insight
+**Key result:** 21% narrower intervals for low-uncertainty cases, 6% wider for high-uncertainty cases, while achieving 94.3% overall coverage (target: 95%).
 
-Bayesian models give well-calibrated uncertainty estimates, but those alone severely under-cover (only 14%!). We use Bayesian uncertainty to *weight* conformal scores, getting the best of both worlds.
+## Why This Matters
 
-## Methods
+Bayesian models give well-calibrated uncertainty estimates, but those alone severely under-cover (only 14.1% coverage!). We use Bayesian uncertainty to *weight* conformal scores, getting the best of both worlds.
 
-We implemented four approaches:
+## Hierarchical Calibration Methods
 
-| Model | Coverage Guarantee | Adaptive Intervals |
-|-------|-------------------|-------------------|
-| Standard HRF | ❌ | ❌ |
-| Bayesian HRF | ❌ | ✅ |
-| Conformal HRF | ✅ | ❌ |
-| **Hybrid (ours)** | ✅ | ✅ |
+Healthcare data violates the exchangeability assumption , patients within the same hospital are correlated. We implement three methods to handle this:
 
-## Results
-
-Tested on 61,538 patients from 3,793 hospitals:
-
-- **Coverage:** 94.3% (target: 95%)
-- **Low-uncertainty cases:** 21% narrower intervals
-- **High-uncertainty cases:** 6% wider intervals (appropriate conservatism)
-- **Bayesian alone:** Only 14.1% coverage (not usable clinically)
+| Method | Description | Use When |
+|--------|-------------|----------|
+| `cdf_pooling` | Use all calibration data | Quick baseline |
+| `subsampling_once` | One patient per hospital | Fast, breaks dependence |
+| `repeated_subsampling` | B=50 bootstrap iterations | Most robust (recommended) |
 
 ## Quick Start
 
@@ -45,21 +36,48 @@ pip install -r requirements.txt
 from src.models import HybridConformalHRF
 
 # Train
-model = HybridConformalHRF()
+model = HybridConformalHRF(method='repeated_subsampling')
 model.fit(X_train, y_train, groups_train)
 model.calibrate(X_calib, y_calib, groups_calib, alpha=0.05)
 
-# Predict with intervals
-predictions, lower, upper = model.predict(X_test, groups_test)
+# Predict with adaptive intervals
+predictions, lower, upper, uncertainties = model.predict(X_test, groups_test)
 
 # Check coverage
 coverage = ((y_test >= lower) & (y_test <= upper)).mean()
 print(f"Coverage: {coverage:.1%}")  # Should be ~95%
+
+# Check adaptation
+low_unc = uncertainties < np.percentile(uncertainties, 25)
+high_unc = uncertainties > np.percentile(uncertainties, 75)
+print(f"Width (low uncertainty):  {(upper[low_unc] - lower[low_unc]).mean():.2f}")
+print(f"Width (high uncertainty): {(upper[high_unc] - lower[high_unc]).mean():.2f}")
+```
+
+## Models
+
+| Model | Coverage Guarantee | Adaptive Intervals |
+|-------|-------------------|-------------------|
+| `HierarchicalRandomForest` | ❌ | ❌ |
+| `BayesianHRF` | ❌ (14.1% actual) | ✅ |
+| `ConformalHRF` | ✅ | ❌ (uniform) |
+| `HybridConformalHRF` | ✅ (94.3%) | ✅ |
+
+## Files
+
+```
+├── src/
+│   └── models.py           # All model implementations
+├── notebooks/
+│   └── CBHRF.ipynb         # Full analysis
+├── requirements.txt
+└── README.md
 ```
 
 ## Data
 
-- **NIS 2019**: Available from [HCUP](https://www.hcup-us.ahrq.gov/nisoverview.jsp) (requires data use agreement)
+- **NIS 2019**: 61,538 patients from 3,793 hospitals across 4 US regions
+- Available from [HCUP](https://www.hcup-us.ahrq.gov/nisoverview.jsp) (requires data use agreement)
 
 ## Citation
 
