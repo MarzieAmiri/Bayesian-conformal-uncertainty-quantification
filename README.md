@@ -10,8 +10,7 @@ We built a hybrid framework that combines both:
 - **Conformal prediction** gives you guaranteed 95% coverage (your true value falls in the interval 95% of the time)
 - **Bayesian uncertainty** lets intervals adapt — narrower when confident, wider when uncertain
 
-The result: 21% narrower intervals for easy cases, while still maintaining coverage for hard cases.
-
+The result: 21% narrower intervals for low-uncertainty cases, 6% wider for high-uncertainty cases, while maintaining overall 95% coverage
 ## The Key Insight
 
 Bayesian models give well-calibrated uncertainty estimates, but those alone severely under-cover (only 14%!). We use Bayesian uncertainty to *weight* conformal scores, getting the best of both worlds.
