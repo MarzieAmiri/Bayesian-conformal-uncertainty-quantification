@@ -63,16 +63,6 @@ print(f"Width (high uncertainty): {(upper[high_unc] - lower[high_unc]).mean():.2
 | `ConformalHRF` | ✅ | ❌ (uniform) |
 | `HybridConformalHRF` | ✅ (94.3%) | ✅ |
 
-## Files
-
-```
-├── src/
-│   └── models.py           # All model implementations
-├── notebooks/
-│   └── CBHRF.ipynb         # Full analysis
-├── requirements.txt
-└── README.md
-```
 
 ## Data
 
