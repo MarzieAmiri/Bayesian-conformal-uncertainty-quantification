@@ -4,7 +4,7 @@ Code for our paper in *Scientific Reports* (Nature, 2026).
 
 ## What's this about?
 
-Predicting hospital length of stay is useful, but predictions alone aren't enough — clinicians need to know *how confident* those predictions are. The problem: existing methods either give you reliable coverage guarantees (conformal prediction) or adaptive uncertainty (Bayesian), but not both.
+Predicting hospital length of stay is useful, but predictions alone aren't enough, clinicians need to know *how confident* those predictions are. The problem: existing methods either give you reliable coverage guarantees (conformal prediction) or adaptive uncertainty (Bayesian), but not both.
 
 We built a hybrid framework that combines both:
 - **Conformal prediction** gives you guaranteed 95% coverage (your true value falls in the interval 95% of the time)
