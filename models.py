@@ -1,6 +1,3 @@
-# ============================================================================
-# Hierarchical Conformal Prediction Models
-# ============================================================================
 
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
@@ -14,17 +11,7 @@ except ImportError:
     HAS_PYMC = False
     print("PyMC not installed. Bayesian models will use RF fallback.")
 
-
-# ============================================================================
-# Base Model: Hierarchical Random Forest
-# ============================================================================
-
 class HierarchicalRandomForest:
-    """
-    Random forest that models residuals at each hierarchical level.
-    Patient → Hospital → Region
-    """
-    
     def __init__(self, n_jobs=-1):
         self.n_jobs = n_jobs
         self.patient_rf = RandomForestRegressor(
@@ -77,17 +64,7 @@ class HierarchicalRandomForest:
         )
         return patient_pred + hospital_pred + region_pred
 
-
-# ============================================================================
-# Bayesian HRF
-# ============================================================================
-
 class BayesianHRF:
-    """
-    Bayesian hierarchical RF using PyMC.
-    Provides adaptive uncertainty but no coverage guarantee.
-    """
-    
     def __init__(self, n_trees=50, max_depth=10):
         self.n_trees = n_trees
         self.max_depth = max_depth
@@ -101,7 +78,6 @@ class BayesianHRF:
     def fit(self, X, y, groups, n_samples=250, tune=500):
         X_scaled = self.scaler.fit_transform(X)
         
-        # Always fit RF as base
         self.rf = RandomForestRegressor(
             n_estimators=self.n_trees, max_depth=self.max_depth,
             n_jobs=-1, random_state=42
@@ -186,20 +162,7 @@ class BayesianHRF:
             se = np.std(rf_preds) * 0.5
             return rf_preds, rf_preds - 1.96*se, rf_preds + 1.96*se, None
 
-
-# ============================================================================
-# Standard Conformal HRF (uniform intervals, coverage guarantee)
-# ============================================================================
-
 class ConformalHRF:
-    """
-    Conformal prediction with hierarchical calibration methods.
-    
-    Three methods to handle cluster dependence:
-    - cdf_pooling: Use all calibration data (assumes independence)
-    - subsampling_once: One patient per hospital (breaks dependence)
-    - repeated_subsampling: Multiple subsampling iterations (robust)
-    """
     
     def __init__(self, base_model=None, method='cdf_pooling'):
         self.base_model = base_model or HierarchicalRandomForest()
@@ -213,7 +176,6 @@ class ConformalHRF:
         return self
     
     def _subsample_one_per_hospital(self, X, y, groups, seed=None):
-        """Select one patient per hospital to break within-cluster dependence."""
         if seed is not None:
             np.random.seed(seed)
         
@@ -230,13 +192,11 @@ class ConformalHRF:
         return X[idx], y[idx], groups_sub
     
     def _compute_threshold(self, scores, alpha):
-        """Compute conformal threshold from conformity scores."""
         n = len(scores)
         q_level = min(1.0, np.ceil((n + 1) * (1 - alpha)) / n)
         return np.quantile(scores, q_level)
     
     def calibrate(self, X_calib, y_calib, groups_calib, alpha=0.05):
-        """Calibrate using one of three hierarchical methods."""
         self.alpha = alpha
         
         if self.method == 'cdf_pooling':
@@ -288,17 +248,6 @@ class ConformalHRF:
 # ============================================================================
 
 class HybridConformalHRF:
-    """
-    Our main contribution: Bayesian uncertainty weighting + conformal calibration.
-    
-    Key idea: Use Bayesian posterior variance to weight conformity scores,
-    giving narrower intervals for confident predictions while maintaining
-    overall coverage guarantee.
-    
-    Result: 21% narrower for low-uncertainty, 6% wider for high-uncertainty,
-    while achieving 94.3% overall coverage (target: 95%).
-    """
-    
     def __init__(self, method='cdf_pooling', gamma=1.0):
         self.hrf = HierarchicalRandomForest()
         self.bayesian = BayesianHRF()
@@ -315,7 +264,6 @@ class HybridConformalHRF:
         return self
     
     def _get_uncertainties(self, X, groups):
-        """Get Bayesian posterior standard deviations."""
         _, _, _, all_preds = self.bayesian.predict(X, groups)
         if all_preds is not None:
             return np.std(all_preds, axis=0)
@@ -324,7 +272,6 @@ class HybridConformalHRF:
             return np.ones(len(X))
     
     def _subsample_one_per_hospital(self, X, y, groups, uncertainties, seed=None):
-        """Select one patient per hospital."""
         if seed is not None:
             np.random.seed(seed)
         
@@ -341,13 +288,11 @@ class HybridConformalHRF:
         return X[idx], y[idx], groups_sub, uncertainties[idx]
     
     def _compute_weighted_threshold(self, residuals, uncertainties, alpha):
-        """Compute threshold from uncertainty-weighted conformity scores."""
         # Scale uncertainties
         scaled_unc = np.power(uncertainties, self.gamma)
         scaled_unc = np.maximum(scaled_unc, 1e-6)  # avoid division by zero
         
         # Weight scores by inverse uncertainty
-        # High uncertainty → lower weighted score
         weighted_scores = np.abs(residuals) / scaled_unc
         
         n = len(weighted_scores)
@@ -355,7 +300,6 @@ class HybridConformalHRF:
         return np.quantile(weighted_scores, q_level)
     
     def calibrate(self, X_calib, y_calib, groups_calib, alpha=0.05):
-        """Calibrate with Bayesian-weighted conformity scores."""
         self.alpha = alpha
         
         # Get predictions and uncertainties
@@ -395,13 +339,6 @@ class HybridConformalHRF:
         return self
     
     def predict(self, X, groups):
-        """
-        Predict with adaptive intervals.
-        
-        Interval width = threshold * uncertainty^gamma
-        - Low uncertainty → narrower interval
-        - High uncertainty → wider interval
-        """
         if not self.is_calibrated:
             raise RuntimeError("Call calibrate() first")
         
@@ -421,12 +358,9 @@ class HybridConformalHRF:
         return preds, lower, upper, uncertainties
 
 
-# ============================================================================
-# Convenience function
-# ============================================================================
 
 def create_all_models(method='cdf_pooling'):
-    """Create instances of all model types."""
+    
     return {
         'hrf': HierarchicalRandomForest(),
         'bayesian_hrf': BayesianHRF(),
@@ -435,10 +369,7 @@ def create_all_models(method='cdf_pooling'):
     }
 
 
-# ============================================================================
-# Test
-# ============================================================================
-
+#Test
 if __name__ == "__main__":
     np.random.seed(42)
     n = 3000
