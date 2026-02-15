@@ -9,7 +9,6 @@ try:
     HAS_PYMC = True
 except ImportError:
     HAS_PYMC = False
-    print("PyMC not installed. Bayesian models will use RF fallback.")
 
 class HierarchicalRandomForest:
     def __init__(self, n_jobs=-1):
@@ -242,10 +241,7 @@ class ConformalHRF:
         
         return preds, lower, upper
 
-
-# ============================================================================
 # Hybrid Bayesian-Conformal HRF (adaptive intervals + coverage guarantee)
-# ============================================================================
 
 class HybridConformalHRF:
     def __init__(self, method='cdf_pooling', gamma=1.0):
@@ -368,68 +364,3 @@ def create_all_models(method='cdf_pooling'):
         'hybrid_conformal_hrf': HybridConformalHRF(method=method)
     }
 
-
-#Test
-if __name__ == "__main__":
-    np.random.seed(42)
-    n = 3000
-    
-    # Fake hierarchical data
-    X = np.random.randn(n, 10)
-    hospitals = np.random.randint(0, 100, n)
-    regions = np.random.randint(0, 4, n)
-    y = X[:, 0] * 2 + hospitals * 0.05 + regions * 0.3 + np.random.randn(n)
-    
-    groups = {'HOSP_NIS': hospitals, 'HOSP_REGION': regions}
-    
-    # Split: 60% train, 20% calibration, 20% test
-    train_idx = np.arange(0, 1800)
-    calib_idx = np.arange(1800, 2400)
-    test_idx = np.arange(2400, 3000)
-    
-    X_train, y_train = X[train_idx], y[train_idx]
-    X_calib, y_calib = X[calib_idx], y[calib_idx]
-    X_test, y_test = X[test_idx], y[test_idx]
-    
-    g_train = {k: v[train_idx] for k, v in groups.items()}
-    g_calib = {k: v[calib_idx] for k, v in groups.items()}
-    g_test = {k: v[test_idx] for k, v in groups.items()}
-    
-    print("="*60)
-    print("Testing Conformal Methods")
-    print("="*60)
-    
-    for method in ['cdf_pooling', 'subsampling_once', 'repeated_subsampling']:
-        print(f"\n--- Method: {method} ---")
-        
-        # Standard conformal
-        conf = ConformalHRF(method=method)
-        conf.fit(X_train, y_train, g_train)
-        conf.calibrate(X_calib, y_calib, g_calib, alpha=0.05)
-        preds, lower, upper = conf.predict(X_test, g_test)
-        
-        coverage = ((y_test >= lower) & (y_test <= upper)).mean()
-        width = (upper - lower).mean()
-        print(f"Standard Conformal: Coverage={coverage:.1%}, Width={width:.2f}")
-        
-        # Hybrid conformal
-        hybrid = HybridConformalHRF(method=method)
-        hybrid.fit(X_train, y_train, g_train)
-        hybrid.calibrate(X_calib, y_calib, g_calib, alpha=0.05)
-        preds, lower, upper, unc = hybrid.predict(X_test, g_test)
-        
-        coverage = ((y_test >= lower) & (y_test <= upper)).mean()
-        width = (upper - lower).mean()
-        
-        # Check adaptation
-        high_unc = unc > np.percentile(unc, 75)
-        low_unc = unc < np.percentile(unc, 25)
-        width_high = (upper[high_unc] - lower[high_unc]).mean()
-        width_low = (upper[low_unc] - lower[low_unc]).mean()
-        
-        print(f"Hybrid Conformal:   Coverage={coverage:.1%}, Width={width:.2f}")
-        print(f"  → Low uncertainty width:  {width_low:.2f}")
-        print(f"  → High uncertainty width: {width_high:.2f}")
-    
-    print("\n" + "="*60)
-    print("Done!")
